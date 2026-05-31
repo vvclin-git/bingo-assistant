@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
+  Check,
+  Pencil,
   Plus,
   RefreshCcw,
   Save,
@@ -167,6 +169,7 @@ function BingoApp() {
   const [drawInput, setDrawInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playerNameDraft, setPlayerNameDraft] = useState('');
+  const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [celebration, setCelebration] = useState(null);
 
   useEffect(() => {
@@ -193,6 +196,7 @@ function BingoApp() {
 
   useEffect(() => {
     setPlayerNameDraft(selectedPlayer?.name ?? '');
+    setEditingPlayerName(false);
   }, [selectedPlayer?.id, selectedPlayer?.name]);
 
   useEffect(() => {
@@ -397,6 +401,12 @@ function BingoApp() {
       )),
       message: { type: 'success', text: `Saved player name: ${name}.` },
     }));
+    setEditingPlayerName(false);
+  }
+
+  function cancelPlayerNameEdit() {
+    setPlayerNameDraft(selectedPlayer?.name ?? '');
+    setEditingPlayerName(false);
   }
 
   function addPlayer() {
@@ -583,7 +593,36 @@ function BingoApp() {
       <section className="board-area" aria-label={`${selectedPlayer.name} board`}>
         <div className="board-header">
           <div>
-            <h2>{selectedPlayer.name}</h2>
+            {!editingPlayerName ? (
+              <div className="player-title-row">
+                <h2>{selectedPlayer.name}</h2>
+                <button
+                  className="small-icon-button"
+                  type="button"
+                  onClick={() => setEditingPlayerName(true)}
+                  aria-label={`Rename ${selectedPlayer.name}`}
+                >
+                  <Pencil size={17} />
+                </button>
+              </div>
+            ) : (
+              <form className="player-name-inline" onSubmit={savePlayerName}>
+                <label className="sr-only" htmlFor="player-name-input">Player name</label>
+                <input
+                  id="player-name-input"
+                  value={playerNameDraft}
+                  maxLength={28}
+                  autoFocus
+                  onChange={(event) => setPlayerNameDraft(event.target.value)}
+                />
+                <button type="submit" aria-label="Save player name">
+                  <Check size={17} />
+                </button>
+                <button type="button" onClick={cancelPlayerNameEdit} aria-label="Cancel renaming player">
+                  <X size={17} />
+                </button>
+              </form>
+            )}
             <p>{markedCount} registered - {latestDraw === null ? 'Waiting for first draw' : `Latest draw ${latestDraw}`}</p>
           </div>
           <div className="board-meter" aria-label={`${markedCount} of ${cellCount} numbers registered`}>
@@ -610,22 +649,6 @@ function BingoApp() {
             </button>
           )}
         </section>
-
-        <form className="player-name-form" onSubmit={savePlayerName}>
-          <label htmlFor="player-name-input">Player name</label>
-          <div>
-            <input
-              id="player-name-input"
-              value={playerNameDraft}
-              maxLength={28}
-              onChange={(event) => setPlayerNameDraft(event.target.value)}
-            />
-            <button type="submit">
-              <Save size={16} />
-              Save
-            </button>
-          </div>
-        </form>
 
         <div className="bingo-board" style={{ '--board-size': config.boardSize }}>
           {selectedPlayer.board.map((number, index) => {

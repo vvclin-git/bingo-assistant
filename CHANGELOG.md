@@ -4,5 +4,5 @@
 
 - Added the initial Bingo Assistant React/Vite app.
 - Added configurable max lottery number, board size, default player count, duplicate draw handling, and auto-hints.
-- Added player renaming, guarded draw-to-player registration flow, and bingo celebration feedback.
+- Added pencil-triggered player renaming, guarded draw-to-player registration flow, and bingo celebration feedback.
 - Added GitHub Pages deployment through GitHub Actions.
