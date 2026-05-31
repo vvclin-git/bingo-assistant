@@ -43,6 +43,12 @@ button {
   touch-action: manipulation;
 }
 
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .app-shell {
   width: min(100% - 28px, 980px);
   margin: 0 auto;
@@ -446,6 +452,17 @@ h1 {
   color: var(--ink);
 }
 
+.player-tab.required {
+  border-color: var(--teal);
+  background: #dffcf5;
+}
+
+.player-tab.done {
+  border-color: #9ed9b2;
+  background: #e8fbef;
+  color: #176239;
+}
+
 .add-player {
   flex: 0 0 auto;
   padding: 0 16px;
@@ -520,12 +537,182 @@ h1 {
   color: #075f54;
 }
 
+.flow-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  border: 2px solid #b8e5dc;
+  border-radius: 8px;
+  background: #f0fffb;
+  padding: 12px;
+}
+
+.flow-panel strong {
+  display: block;
+  color: #075f54;
+  font-size: 0.98rem;
+  font-weight: 950;
+}
+
+.flow-panel p {
+  margin-top: 4px;
+  color: #347168;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.player-name-form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.player-name-form label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.player-name-form div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.player-name-form input {
+  min-width: 0;
+  height: 44px;
+  border: 2px solid #e2c692;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 900;
+  padding: 0 12px;
+}
+
+.player-name-form input:focus {
+  outline: 4px solid rgba(15, 159, 143, 0.22);
+  border-color: var(--teal);
+}
+
+.player-name-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--teal);
+  color: #fff;
+  font-weight: 900;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
 .bingo-board {
   display: grid;
   grid-template-columns: repeat(var(--board-size, 5), minmax(0, 1fr));
   gap: clamp(7px, 1.5vw, 12px);
   aspect-ratio: 1;
   max-height: min(64vh, 720px);
+}
+
+.celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: rgba(37, 23, 11, 0.18);
+}
+
+.celebration-card {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  width: min(86vw, 360px);
+  border: 3px solid #ffae32;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #8a2f12;
+  padding: 28px 22px;
+  text-align: center;
+  box-shadow: 0 22px 70px rgba(102, 58, 8, 0.28);
+  animation: celebration-pop 420ms ease-out;
+}
+
+.celebration-card strong {
+  color: #f06f2e;
+  font-size: clamp(2.2rem, 12vw, 4.4rem);
+  font-weight: 1000;
+  line-height: 0.95;
+}
+
+.celebration-card p {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.confetti span {
+  position: fixed;
+  top: -20px;
+  left: calc(var(--i, 0) * 6%);
+  width: 12px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--orange);
+  animation: confetti-fall 1800ms ease-in forwards;
+}
+
+.confetti span:nth-child(3n) {
+  background: var(--teal);
+}
+
+.confetti span:nth-child(3n + 1) {
+  background: var(--yellow);
+}
+
+.confetti span:nth-child(1) { --i: 1; animation-delay: 0ms; }
+.confetti span:nth-child(2) { --i: 4; animation-delay: 90ms; }
+.confetti span:nth-child(3) { --i: 8; animation-delay: 40ms; }
+.confetti span:nth-child(4) { --i: 12; animation-delay: 130ms; }
+.confetti span:nth-child(5) { --i: 16; animation-delay: 20ms; }
+.confetti span:nth-child(6) { --i: 3; animation-delay: 180ms; }
+.confetti span:nth-child(7) { --i: 7; animation-delay: 70ms; }
+.confetti span:nth-child(8) { --i: 11; animation-delay: 160ms; }
+.confetti span:nth-child(9) { --i: 15; animation-delay: 100ms; }
+.confetti span:nth-child(10) { --i: 2; animation-delay: 220ms; }
+.confetti span:nth-child(11) { --i: 6; animation-delay: 140ms; }
+.confetti span:nth-child(12) { --i: 10; animation-delay: 240ms; }
+.confetti span:nth-child(13) { --i: 14; animation-delay: 60ms; }
+.confetti span:nth-child(14) { --i: 18; animation-delay: 190ms; }
+.confetti span:nth-child(15) { --i: 5; animation-delay: 260ms; }
+.confetti span:nth-child(16) { --i: 9; animation-delay: 120ms; }
+.confetti span:nth-child(17) { --i: 13; animation-delay: 210ms; }
+.confetti span:nth-child(18) { --i: 17; animation-delay: 30ms; }
+
+@keyframes celebration-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.86) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes confetti-fall {
+  to {
+    top: 105vh;
+    transform: rotate(420deg) translateX(34px);
+  }
 }
 
 .cell {
@@ -660,6 +847,7 @@ h1 {
     display: grid;
   }
 
+  .flow-panel,
   .settings-actions {
     display: grid;
   }
@@ -679,6 +867,10 @@ h1 {
   }
 
   .draw-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .player-name-form div {
     grid-template-columns: 1fr;
   }
 

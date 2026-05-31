@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  bingoLines,
   boardCellCount,
+  completedPlayerIdsForDraw,
   canRecordDraw,
   createDefaultGame,
   DEFAULT_CONFIG,
+  isDrawRoundComplete,
   locationHint,
+  nextRequiredPlayerId,
   normalizeConfig,
   normalizeGame,
   parseDraw,
@@ -80,4 +84,34 @@ test('normalizeGame migrates saved games without config to defaults', () => {
   assert.deepEqual(game.config, DEFAULT_CONFIG);
   assert.equal(game.players[0].marked.length, 1);
   assert.equal(game.version, 2);
+});
+
+test('draw round helpers track completed players in order', () => {
+  const game = createDefaultGame({ defaultPlayerCount: 3 });
+  const currentDraw = { number: 42, completedPlayerIds: [game.players[0].id] };
+  assert.equal(isDrawRoundComplete(game.players, currentDraw), false);
+  assert.equal(nextRequiredPlayerId(game.players, currentDraw), game.players[1].id);
+
+  const completeDraw = {
+    number: 42,
+    completedPlayerIds: game.players.map((player) => player.id),
+  };
+  assert.equal(isDrawRoundComplete(game.players, completeDraw), true);
+  assert.equal(nextRequiredPlayerId(game.players, completeDraw), '');
+});
+
+test('completedPlayerIdsForDraw treats existing marks as completed for that draw', () => {
+  const game = createDefaultGame({ defaultPlayerCount: 2 });
+  const players = [
+    { ...game.players[0], marked: [17] },
+    { ...game.players[1], marked: [] },
+  ];
+  assert.deepEqual(completedPlayerIdsForDraw(players, 17, []), [players[0].id]);
+});
+
+test('bingoLines detects rows columns and diagonals', () => {
+  const board = Array.from({ length: 9 }, (_, index) => index + 1);
+  assert.deepEqual(bingoLines(board, [1, 2, 3], { boardSize: 3 }).map((line) => line.type), ['row']);
+  assert.deepEqual(bingoLines(board, [1, 4, 7], { boardSize: 3 }).map((line) => line.type), ['column']);
+  assert.deepEqual(bingoLines(board, [1, 5, 9], { boardSize: 3 }).map((line) => line.type), ['diagonal']);
 });

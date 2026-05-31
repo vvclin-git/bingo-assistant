@@ -5,10 +5,12 @@ A touch-first web app for replacing paper bingo boards on a phone or iPad while 
 ## Workflow
 
 1. Enter the latest draw number at the top.
-2. Switch to each player.
-3. Tap the matching number on that player's board.
+2. Register that draw for Player 1.
+3. Continue through each player in order.
+4. When every player is finished, enter the next draw.
 
 The app blocks wrong taps. If the latest draw exists on the selected board, the matching cell is highlighted and wrong taps show the row and column hint.
+If the draw is not on the selected player's board, use **Mark player finished** to advance the guarded flow.
 
 ## Defaults
 
@@ -24,9 +26,13 @@ The app blocks wrong taps. If the latest draw exists on the selected board, the 
 - **Record**: adds a new draw from 1 to 99 and rejects duplicates.
 - **Player tabs**: switch the active board.
 - **Add player**: creates a new board for another player.
+- **Save player name**: rename the selected player and persist it locally.
+- **Mark player finished**: finish the selected player's turn for the active draw when there is no matching number to tap.
 - **Undo last draw**: removes the latest draw and clears that number from all marked boards.
 - **Regenerate boards**: keeps draw history but replaces all boards and clears marks.
 - **New game**: resets to 3 players with fresh boards and no draw history.
+
+The guarded flow blocks the next draw until every player has completed the current draw. A bingo line triggers a short celebration effect.
 
 ## Settings
 

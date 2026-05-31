@@ -126,6 +126,7 @@ export function createDefaultGame(config = DEFAULT_CONFIG, rng = Math.random) {
     config: normalizedConfig,
     players,
     selectedPlayerId: players[0]?.id ?? '',
+    currentDraw: null,
     drawHistory: [],
     message: {
       type: 'info',
@@ -155,17 +156,48 @@ export function normalizeGame(game) {
   const selectedPlayerId = normalizedPlayers.some((player) => player.id === game?.selectedPlayerId)
     ? game.selectedPlayerId
     : normalizedPlayers[0].id;
+  const currentDraw = game?.currentDraw && Number.isInteger(game.currentDraw.number)
+    ? {
+        number: game.currentDraw.number,
+        completedPlayerIds: Array.isArray(game.currentDraw.completedPlayerIds)
+          ? game.currentDraw.completedPlayerIds.filter((id) => normalizedPlayers.some((player) => player.id === id))
+          : [],
+      }
+    : null;
 
   return {
     version: 2,
     config,
     players: normalizedPlayers,
     selectedPlayerId,
+    currentDraw,
     drawHistory: Array.isArray(game?.drawHistory)
       ? game.drawHistory.filter((number) => Number.isInteger(number) && number >= MIN_NUMBER && number <= config.maxNumber)
       : [],
     message: game?.message || fallback.message,
   };
+}
+
+export function completedPlayerIdsForDraw(players, drawNumber, existingCompletedPlayerIds = []) {
+  const completed = new Set(existingCompletedPlayerIds);
+  for (const player of players) {
+    if (player.marked.includes(drawNumber)) {
+      completed.add(player.id);
+    }
+  }
+  return [...completed].filter((id) => players.some((player) => player.id === id));
+}
+
+export function isDrawRoundComplete(players, currentDraw) {
+  if (!currentDraw) return true;
+  const completed = completedPlayerIdsForDraw(players, currentDraw.number, currentDraw.completedPlayerIds);
+  return players.every((player) => completed.includes(player.id));
+}
+
+export function nextRequiredPlayerId(players, currentDraw) {
+  if (!currentDraw) return players[0]?.id ?? '';
+  const completed = completedPlayerIdsForDraw(players, currentDraw.number, currentDraw.completedPlayerIds);
+  return players.find((player) => !completed.includes(player.id))?.id ?? '';
 }
 
 export function parseDraw(input, config = DEFAULT_CONFIG) {
@@ -194,4 +226,36 @@ export function locationHint(board, number, config = DEFAULT_CONFIG) {
     row: Math.floor(index / normalized.boardSize) + 1,
     column: (index % normalized.boardSize) + 1,
   };
+}
+
+export function bingoLines(board, marked, config = DEFAULT_CONFIG) {
+  const normalized = normalizeConfig(config);
+  const markedSet = new Set(marked);
+  const lines = [];
+
+  for (let row = 0; row < normalized.boardSize; row += 1) {
+    const indexes = Array.from({ length: normalized.boardSize }, (_, column) => row * normalized.boardSize + column);
+    if (indexes.every((index) => markedSet.has(board[index]))) {
+      lines.push({ type: 'row', index: row + 1, cells: indexes });
+    }
+  }
+
+  for (let column = 0; column < normalized.boardSize; column += 1) {
+    const indexes = Array.from({ length: normalized.boardSize }, (_, row) => row * normalized.boardSize + column);
+    if (indexes.every((index) => markedSet.has(board[index]))) {
+      lines.push({ type: 'column', index: column + 1, cells: indexes });
+    }
+  }
+
+  const descendingDiagonal = Array.from({ length: normalized.boardSize }, (_, index) => index * normalized.boardSize + index);
+  if (descendingDiagonal.every((index) => markedSet.has(board[index]))) {
+    lines.push({ type: 'diagonal', index: 1, cells: descendingDiagonal });
+  }
+
+  const ascendingDiagonal = Array.from({ length: normalized.boardSize }, (_, index) => index * normalized.boardSize + (normalized.boardSize - index - 1));
+  if (ascendingDiagonal.every((index) => markedSet.has(board[index]))) {
+    lines.push({ type: 'diagonal', index: 2, cells: ascendingDiagonal });
+  }
+
+  return lines;
 }

@@ -7,17 +7,22 @@ import {
   Settings,
   Sparkles,
   Trash2,
+  Trophy,
   Undo2,
   X,
 } from 'lucide-react';
 import {
+  bingoLines,
   boardCellCount,
   canRecordDraw,
   CONFIG_LIMITS,
   createDefaultGame,
   createPlayer,
+  completedPlayerIdsForDraw,
+  isDrawRoundComplete,
   locationHint,
   MIN_NUMBER,
+  nextRequiredPlayerId,
   normalizeConfig,
   normalizeGame,
   parseDraw,
@@ -161,6 +166,8 @@ function BingoApp() {
   const [game, setGame] = useState(loadGame);
   const [drawInput, setDrawInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [playerNameDraft, setPlayerNameDraft] = useState('');
+  const [celebration, setCelebration] = useState(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(game));
@@ -169,12 +176,30 @@ function BingoApp() {
   const config = normalizeConfig(game.config);
   const cellCount = boardCellCount(config);
   const latestDraw = game.drawHistory[0] ?? null;
+  const completedPlayerIds = completedPlayerIdsForDraw(
+    game.players,
+    game.currentDraw?.number,
+    game.currentDraw?.completedPlayerIds,
+  );
+  const roundComplete = isDrawRoundComplete(game.players, game.currentDraw);
+  const requiredPlayerId = nextRequiredPlayerId(game.players, game.currentDraw);
   const selectedPlayer = useMemo(
     () => game.players.find((player) => player.id === game.selectedPlayerId) ?? game.players[0],
     [game.players, game.selectedPlayerId],
   );
+  const selectedPlayerCompleted = completedPlayerIds.includes(selectedPlayer?.id);
   const latestDrawIndex = latestDraw && selectedPlayer ? selectedPlayer.board.indexOf(latestDraw) : -1;
   const markedCount = selectedPlayer?.marked.length ?? 0;
+
+  useEffect(() => {
+    setPlayerNameDraft(selectedPlayer?.name ?? '');
+  }, [selectedPlayer?.id, selectedPlayer?.name]);
+
+  useEffect(() => {
+    if (!celebration) return undefined;
+    const timeout = window.setTimeout(() => setCelebration(null), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [celebration]);
 
   function updateMessage(type, text) {
     setGame((current) => ({
@@ -185,6 +210,11 @@ function BingoApp() {
 
   function recordDraw(event) {
     event.preventDefault();
+    if (!roundComplete) {
+      updateMessage('danger', 'Finish every player for the current draw before recording the next draw.');
+      return;
+    }
+
     const parsed = parseDraw(drawInput, config);
     if (!parsed.ok) {
       updateMessage('danger', parsed.message);
@@ -198,21 +228,37 @@ function BingoApp() {
       return;
     }
 
-    const existsOnBoard = selectedPlayer.board.includes(value);
-    setGame((current) => ({
-      ...current,
-      drawHistory: [value, ...current.drawHistory],
-      message: {
-        type: existsOnBoard && config.autoHintLatestDraw ? 'hint' : 'info',
-        text: existsOnBoard
-          ? `${value} is on ${selectedPlayer.name}'s board.${config.autoHintLatestDraw ? ' Tap the highlighted spot.' : ''}`
-          : `${value} is recorded, but it is not on ${selectedPlayer.name}'s board.`,
-      },
-    }));
+    setGame((current) => {
+      const nextCurrentDraw = {
+        number: value,
+        completedPlayerIds: completedPlayerIdsForDraw(current.players, value, []),
+      };
+      const finished = isDrawRoundComplete(current.players, nextCurrentDraw);
+      const nextPlayerId = nextRequiredPlayerId(current.players, nextCurrentDraw);
+      const nextPlayer = current.players.find((player) => player.id === nextPlayerId) ?? current.players[0];
+      return {
+        ...current,
+        drawHistory: [value, ...current.drawHistory],
+        currentDraw: finished ? null : nextCurrentDraw,
+        selectedPlayerId: finished ? current.selectedPlayerId : nextPlayer?.id ?? current.selectedPlayerId,
+        message: {
+          type: nextPlayer?.board.includes(value) && config.autoHintLatestDraw ? 'hint' : 'info',
+          text: finished
+            ? `${value} recorded. All players were already registered for this draw.`
+            : `${value} recorded. Start with ${nextPlayer?.name ?? 'Player 1'}.`,
+        },
+      };
+    });
     setDrawInput('');
   }
 
   function selectPlayer(playerId) {
+    if (!roundComplete && playerId !== requiredPlayerId) {
+      const requiredPlayer = game.players.find((player) => player.id === requiredPlayerId);
+      updateMessage('danger', `Flow guardrail: finish ${requiredPlayer?.name ?? 'the current player'} before switching.`);
+      return;
+    }
+
     const nextPlayer = game.players.find((player) => player.id === playerId);
     const hasDraw = latestDraw !== null;
     const drawOnBoard = hasDraw && nextPlayer?.board.includes(latestDraw);
@@ -236,6 +282,12 @@ function BingoApp() {
       return;
     }
 
+    if (!roundComplete && selectedPlayer.id !== requiredPlayerId) {
+      const requiredPlayer = game.players.find((player) => player.id === requiredPlayerId);
+      updateMessage('danger', `Flow guardrail: finish ${requiredPlayer?.name ?? 'the current player'} first.`);
+      return;
+    }
+
     if (number !== latestDraw) {
       const location = locationHint(selectedPlayer.board, latestDraw, config);
       const locationText = location
@@ -255,17 +307,95 @@ function BingoApp() {
       return;
     }
 
+    setGame((current) => finishPlayerTurn({
+      game: current,
+      playerId: selectedPlayer.id,
+      nextMarkedNumber: number,
+      successMessage: `${selectedPlayer.name} registered ${number}.`,
+    }));
+  }
+
+  function finishPlayerTurn({ game: current, playerId, nextMarkedNumber = null, successMessage }) {
+    const playerBefore = current.players.find((player) => player.id === playerId);
+    const beforeBingoCount = playerBefore
+      ? bingoLines(playerBefore.board, playerBefore.marked, current.config).length
+      : 0;
+    const players = current.players.map((player) => {
+      if (player.id !== playerId) return player;
+      if (nextMarkedNumber === null || player.marked.includes(nextMarkedNumber)) return player;
+      return { ...player, marked: [...player.marked, nextMarkedNumber] };
+    });
+    const currentDraw = current.currentDraw
+      ? {
+          ...current.currentDraw,
+          completedPlayerIds: completedPlayerIdsForDraw(
+            players,
+            current.currentDraw.number,
+            [...current.currentDraw.completedPlayerIds, playerId],
+          ),
+        }
+      : null;
+    const nextPlayerId = nextRequiredPlayerId(players, currentDraw);
+    const finished = isDrawRoundComplete(players, currentDraw);
+    const completedPlayer = players.find((player) => player.id === playerId);
+    const afterBingoCount = completedPlayer
+      ? bingoLines(completedPlayer.board, completedPlayer.marked, current.config).length
+      : 0;
+
+    if (afterBingoCount > beforeBingoCount && completedPlayer) {
+      setCelebration({
+        id: Date.now(),
+        playerName: completedPlayer.name,
+        lineCount: afterBingoCount,
+      });
+    }
+
+    return {
+      ...current,
+      players,
+      currentDraw: finished ? null : currentDraw,
+      selectedPlayerId: finished ? playerId : nextPlayerId,
+      message: {
+        type: finished ? 'success' : 'hint',
+        text: finished
+          ? `${successMessage} All players finished. Record the next draw.`
+          : `${successMessage} Next: ${players.find((player) => player.id === nextPlayerId)?.name}.`,
+      },
+    };
+  }
+
+  function finishCurrentPlayer() {
+    if (!game.currentDraw) {
+      updateMessage('info', 'There is no active draw to finish.');
+      return;
+    }
+
+    if (selectedPlayer.board.includes(game.currentDraw.number) && !selectedPlayer.marked.includes(game.currentDraw.number)) {
+      updateMessage('danger', `${game.currentDraw.number} is on ${selectedPlayer.name}'s board. Tap it before moving on.`);
+      return;
+    }
+
+    setGame((current) => finishPlayerTurn({
+      game: current,
+      playerId: selectedPlayer.id,
+      successMessage: `${selectedPlayer.name} finished this draw.`,
+    }));
+  }
+
+  function savePlayerName(event) {
+    event.preventDefault();
+    const name = playerNameDraft.trim();
+    if (!name) {
+      updateMessage('danger', 'Player name cannot be empty.');
+      return;
+    }
+
     setGame((current) => ({
       ...current,
       players: current.players.map((player) => (
-        player.id === selectedPlayer.id
-          ? { ...player, marked: [...player.marked, number] }
-          : player
+        player.id === selectedPlayer.id ? { ...player, name } : player
       )),
-      message: {
-        type: 'success',
-        text: `${selectedPlayer.name} registered ${number}. Switch players to continue.`,
-      },
+      message: { type: 'success', text: `Saved player name: ${name}.` },
     }));
   }
 
@@ -275,7 +405,7 @@ function BingoApp() {
       return {
         ...current,
         players: [...current.players, player],
-        selectedPlayerId: player.id,
+        selectedPlayerId: current.currentDraw ? current.selectedPlayerId : player.id,
         message: { type: 'success', text: `${player.name} added with a fresh board.` },
       };
     });
@@ -293,6 +423,7 @@ function BingoApp() {
       return {
         ...current,
         drawHistory: remainingDraws,
+        currentDraw: current.currentDraw?.number === removedDraw ? null : current.currentDraw,
         players: shouldKeepMarks
           ? current.players
           : current.players.map((player) => ({
@@ -309,6 +440,7 @@ function BingoApp() {
     setGame((current) => ({
       ...current,
       players: current.players.map((player) => ({ ...player, board: randomBoard(current.config), marked: [] })),
+      currentDraw: null,
       message: { type: 'success', text: 'Boards regenerated. Draw history was kept.' },
     }));
   }
@@ -394,9 +526,10 @@ function BingoApp() {
               placeholder={latestDraw ? String(latestDraw) : '42'}
               type="number"
               value={drawInput}
+              disabled={!roundComplete}
               onChange={(event) => setDrawInput(event.target.value)}
             />
-            <button type="submit">
+            <button type="submit" disabled={!roundComplete}>
               <Sparkles size={18} />
               Record
             </button>
@@ -426,7 +559,12 @@ function BingoApp() {
         <div className="player-tabs">
           {game.players.map((player) => (
             <button
-              className={player.id === selectedPlayer.id ? 'player-tab selected' : 'player-tab'}
+              className={[
+                'player-tab',
+                player.id === selectedPlayer.id ? 'selected' : '',
+                !roundComplete && player.id === requiredPlayerId ? 'required' : '',
+                !roundComplete && completedPlayerIds.includes(player.id) ? 'done' : '',
+              ].filter(Boolean).join(' ')}
               type="button"
               key={player.id}
               onClick={() => selectPlayer(player.id)}
@@ -457,11 +595,43 @@ function BingoApp() {
           {game.message.text}
         </div>
 
+        <section className="flow-panel" aria-label="Current draw progress">
+          <div>
+            <strong>{game.currentDraw ? `Draw ${game.currentDraw.number} in progress` : 'Ready for next draw'}</strong>
+            <p>
+              {game.currentDraw
+                ? `Complete players in order. Current turn: ${game.players.find((player) => player.id === requiredPlayerId)?.name ?? selectedPlayer.name}.`
+                : 'Enter a draw number to start the next registration round.'}
+            </p>
+          </div>
+          {game.currentDraw && (
+            <button className="secondary-action" type="button" onClick={finishCurrentPlayer}>
+              Mark player finished
+            </button>
+          )}
+        </section>
+
+        <form className="player-name-form" onSubmit={savePlayerName}>
+          <label htmlFor="player-name-input">Player name</label>
+          <div>
+            <input
+              id="player-name-input"
+              value={playerNameDraft}
+              maxLength={28}
+              onChange={(event) => setPlayerNameDraft(event.target.value)}
+            />
+            <button type="submit">
+              <Save size={16} />
+              Save
+            </button>
+          </div>
+        </form>
+
         <div className="bingo-board" style={{ '--board-size': config.boardSize }}>
           {selectedPlayer.board.map((number, index) => {
             const isMarked = selectedPlayer.marked.includes(number);
             const isLatest = number === latestDraw;
-            const shouldHint = config.autoHintLatestDraw && isLatest && latestDrawIndex >= 0 && !isMarked;
+            const shouldHint = config.autoHintLatestDraw && isLatest && latestDrawIndex >= 0 && !isMarked && !selectedPlayerCompleted;
             return (
               <button
                 className={[
@@ -481,6 +651,20 @@ function BingoApp() {
           })}
         </div>
       </section>
+      {celebration && (
+        <div className="celebration" role="status" aria-live="polite">
+          <div className="confetti" aria-hidden="true">
+            {Array.from({ length: 18 }, (_, index) => (
+              <span key={index} />
+            ))}
+          </div>
+          <div className="celebration-card">
+            <Trophy size={34} />
+            <strong>BINGO!</strong>
+            <p>{celebration.playerName} completed {celebration.lineCount} line{celebration.lineCount === 1 ? '' : 's'}.</p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
